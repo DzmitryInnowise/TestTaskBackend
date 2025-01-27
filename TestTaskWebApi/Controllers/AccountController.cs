@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using TestTaskWebApi.Models;
-using TestTaskWebApi.Services;
-using TestTaskWebApi.Services.JwtTokenService;
+using TestTask.DAL.Models;
+using TestTask.BLL.Services;
 
 namespace TestTaskWebApi.Controllers
 {
@@ -9,23 +8,20 @@ namespace TestTaskWebApi.Controllers
     [Route("api/[controller]")]
     public class AccountController : ControllerBase
     {
-        private readonly IJwtTokenService _jwtTokenService;
         private readonly IUserService _userService;
 
         public AccountController(
-            IJwtTokenService tokenService,
             IUserService userService)
         {
-            _jwtTokenService = tokenService;
             _userService = userService;
         }
 
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginRequest loginRequest)
+        public async Task<IActionResult> Login([FromBody] LoginRequestModel loginData)
         {
-            var result  = await _userService.AuthenticateAsync(loginRequest);
+            var result  = await _userService.AuthenticateAsync(loginData);
 
-            if (result.IsAuthenticated)
+            if (result.IsAuthorized)
             {
                 return Ok(result);
             }

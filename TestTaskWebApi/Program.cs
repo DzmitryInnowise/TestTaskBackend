@@ -1,12 +1,9 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using TestTaskWebApi.Midleware;
-using TestTaskWebApi.Repositories;
-using TestTaskWebApi.Repositories.DBContext;
-using TestTaskWebApi.Services;
-using TestTaskWebApi.Services.JwtTokenService;
+using TestTask.BLL.Services.JwtTokenService;
+using TestTask.BLL;
 
 namespace TestTaskWebApi
 {
@@ -16,23 +13,13 @@ namespace TestTaskWebApi
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Add services to the container.
+            // Add services to the container using the extension method
+            builder.Services.AddBLLServices(builder.Configuration);
 
-            builder.Services.AddDbContext<AppDbContext>(options =>
-                     options.UseSqlServer(builder.Configuration.GetConnectionString("DbConnectionStrings")));
-
-            builder.Services.AddScoped<IUserService, UserService>();
-            builder.Services.AddScoped<IUserRepository, UserRepository>();
-            builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
-            builder.Services.AddScoped<ITaskRepository, TaskRepository>();
-            builder.Services.AddScoped<ITaskService, TaskService>();
-           
-
-            builder.Services.AddControllers();
-
-            builder.Services.Configure<JwtTokenSettings>(builder.Configuration.GetSection("JwtTokenSettings"));
-
+            // Configure JWT
             var jwtSettings = builder.Configuration.GetSection("JwtTokenSettings");
+            builder.Services.Configure<JwtTokenSettings>(jwtSettings);
+
             builder.Services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -50,24 +37,28 @@ namespace TestTaskWebApi
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["JwtSecretKey"]!))
                 };
             });
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
+            // Add CORS
+            var webSettings = builder.Configuration.GetSection("WebSettings");
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("AllowSpecificOrigins", policy =>
+                {
+                    policy.WithOrigins(webSettings["Uri"]!)
+                          .AllowAnyHeader()
+                          .AllowAnyMethod();
+                });
+            });
+
+            builder.Services.AddControllers();
+
+            // Configure Swagger
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
-            builder.Services.AddCors(options =>
-            {
-                options.AddPolicy("AllowSpecificOrigins",
-                    policy =>
-                    {
-                        policy.WithOrigins("http://localhost:3000")
-                              .AllowAnyHeader()
-                              .AllowAnyMethod();
-                    });
-            });
-
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline.
+            // Configure the HTTP request pipeline
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
@@ -78,7 +69,7 @@ namespace TestTaskWebApi
 
             app.UseCors("AllowSpecificOrigins");
 
-            app.UseAuthentication(); 
+            app.UseAuthentication();
             app.UseAuthorization();
 
             app.UseMiddleware<ErrorHandlingMiddleware>();
